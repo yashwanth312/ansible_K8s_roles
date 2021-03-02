@@ -1,0 +1,84 @@
+---
+# tasks file for ec2
+#
+
+- name: Creating YUM repository
+  yum_repository: 
+    name: kubernetes
+    description: K8s master yum repo
+    baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+    enabled: yes
+    gpgcheck: yes
+    repo_gpgcheck: yes
+    gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+
+- name: Installing the K8s programs
+  package:
+    name: "{{ item }}"
+  loop:
+    - docker  
+    - kubectl 
+    - kubeadm 
+    - kubelet
+    - iproute-tc 
+- name: Starting the required services
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop: 
+    - docker 
+    - kubelet
+
+
+- name: Pulling the images required
+  command: "kubeadm config images pull"
+
+- name: Changing the driver of docker 
+  template: 
+    src: daemon.json
+    dest: /etc/docker/
+
+- name: Restarting docker services
+  service:
+    name: docker 
+    state: restarted
+
+- name: Updating the iptable rules
+  template: 
+    src: k8s.conf
+    dest: /etc/sysctl.d/
+
+- name: Restarting the sysctl
+  command: "sysctl --system"
+
+
+- name: Starting the K8s master services
+  shell: " kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+  ignore_errors: yes
+
+- name: Creating master environment
+  file: 
+    path: $HOME/.kube
+    state: directory
+
+- name: Copying the config file
+  command: "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+
+- name: Setting the final environment 
+  shell: "chown $(id -u):$(id -g) $HOME/.kube/config"
+
+- name: Getting the cluster add token
+  command: "kubeadm token create --print-join-command" 
+  register: token
+
+- name: Configuring flannel 
+  command: "kubectl apply  -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+
+- name: Printing the token
+  debug:
+    var: token
+
+ 
+

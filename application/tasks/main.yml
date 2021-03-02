@@ -1,0 +1,24 @@
+---
+# tasks file for application
+#
+- name: Creating directory for wordpress deployment 
+  file: 
+    path: /root/wordpress
+    state: directory
+
+- name: Sending the required files to the client 
+  copy: 
+    src: "{{ item }}"
+    dest: /root/wordpress
+  loop: 
+    - mysql.yml
+    - secret-db.yml
+    - wordpress.yml
+
+- name: Deploying the Wordpress application
+  command: "{{ item }}" 
+  loop: 
+    - kubectl apply -f /root/wordpress/secret-db.yml
+    - kubectl apply -f /root/wordpress/mysql.yml
+    - kubectl apply -f /root/wordpress/wordpress.yml
+    - kubectl expose pods wordpress --port=80 --type=NodePort

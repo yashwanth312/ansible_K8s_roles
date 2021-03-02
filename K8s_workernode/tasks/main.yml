@@ -1,0 +1,51 @@
+---
+# tasks file for slave
+#
+- name: Creating YUM repository
+  yum_repository:
+    name: kubernetes
+    description: K8s master yum repo
+    baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+    enabled: yes
+    gpgcheck: yes
+    repo_gpgcheck: yes
+    gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+
+- name: Installing the K8s programs
+  package:
+    name: "{{ item }}"
+  loop:
+    - docker
+    - kubectl
+    - kubeadm
+    - kubelet
+    - iproute-tc
+- name: Starting the required services
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - docker
+    - kubelet
+- name: Changing the driver of docker
+  template:
+    src: daemon.json
+    dest: /etc/docker/
+
+- name: Restarting docker services
+  service:
+    name: docker
+    state: restarted
+- name: Updating the iptable rules
+  template:
+    src: k8s.conf
+    dest: /etc/sysctl.d/
+
+- name: Restarting the sysctl
+  command: "sysctl --system"
+
+- name: Joining the cluster 
+  command: "{{ token }}" 
+
